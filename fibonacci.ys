@@ -1,0 +1,155 @@
+main:
+    irmovq array, %rsp
+    irmovq array, %rbp
+    
+isfibonacci:
+    irmovq $0, %r8 #zero to use in comparison
+    popq %rdi #first value from stack to rdi
+    subq %r8, %rdi #test if value is zero
+    je endprogram #if it is stop exectuion
+    pushq %rdi
+    rrmovq %rdi, %rsi #copy value to rdi->rsi
+    call multiply #x*x
+    rrmovq %rax, %rdi #rdi = x*x
+    irmovq $5, %rsi
+    call multiply #5*x*x
+    rrmovq %rax, %rdi
+    pushq %rdi #push 5*x*x to stack
+    
+isperfectsquareplusfour:
+    #r10 = s
+    irmovq $4, %r9 #four to be summed
+    addq %r9, %rdi #rdi = 5*x*x+4
+    rrmovq %rdi, %r12 #copy rdi -> r12 for sqrt
+    pushq %rdi #push 5*x*x+4 to stack
+    call sqrt #sqrt(x)
+    #rdi=s rsi=s => s*s
+    rrmovq %r10, %rdi
+    rrmovq %r10, %rsi
+    call multiply
+    rrmovq %rax, %r10 #r10=s*s
+    popq %rdi #rdi=5*x*x+4
+    subq %rdi, %r10
+    popq %rdi #rdi = 5*x*x
+    popq %rax #rax = tested value
+    je isfibonacci
+    
+isperfectsquareminusfour:
+    #r10 = s
+    pushq %rax #push rax to stack
+    irmovq $4, %r9 #four to subtract
+    subq %r9, %rdi #rdi = 5*x*x-4
+    rrmovq %rdi, %r12 #copy rdi -> r12 for sqrt
+    pushq %rdi #push 5*x*x-4 to stack
+    call sqrt #sqrt(x)
+    #rdi=s rsi=s => s*s
+    rrmovq %r10, %rdi
+    rrmovq %r10, %rsi
+    call multiply
+    rrmovq %rax, %r10 #r10=s*s
+    popq %rdi
+    subq %rdi, %r10
+    popq %rax
+    je isfibonacci
+    
+notfibonacci:
+    halt
+
+endprogram:
+    irmovq $0, %rax #rax = 0 if fibonacci sequence
+    halt
+    
+multiply:
+    irmovq $0, %rax #multiplication result
+    irmovq $1, %rcx #one to subtract from other multiplicant
+multiplyloop:
+    addq %rdi, %rax #result = result + rdi
+    subq %rcx, %rsi #counter = count - 1
+    jne multiplyloop
+    ret
+
+sqrt:
+    #r12 = num
+    irmovq $0, %r10 #result
+    irmovq 0x1000000, %rbx #bit
+    irmovq $0, %r8 #zero for comparison
+    
+bitgnum: #while (bit > num)
+    rrmovq %r12, %r13 #make a copy of the num 12->13 for comparison
+    subq %rbx, %r13 #test if num - bit < 0
+    jge bitne
+    # bit bit >>= 2
+    call shiftbit
+    jmp bitgnum
+    
+bitne: #while (bit != 0)
+    irmovq $0, %r14 #r14 = res + bit
+    addq %rbx, %r14 #r14 = bit + r14
+    addq %r10, %r14 #r14 = result + bit
+    rrmovq %r12, %r13 #make a copy of the num 12->13 for comparison
+    subq %r14, %r13 #num - (res + bit) >= 0
+    jge if
+    jmp else
+
+if:
+    subq %r14, %r12 #num = num - (res + bit)
+    #res >> 1
+    call shiftresult
+    addq %rbx, %r10 #res = res + bit
+    jmp sqrtend
+    
+else:
+    #res >> 1
+    call shiftresult
+    jmp sqrtend
+    
+sqrtend:
+    #bit >>= 2
+    call shiftbit
+    subq %r8, %rbx #bit = bit - 0
+    jne bitne
+    ret
+
+shiftbit:
+    irmovq $4, %rax #read bit mask 100 when shifting by two
+    irmovq $23, %r8 #bits to iterate over
+    rrmovq %rbx, %rcx #copy the bit to rcx to be used as an argument for rshift
+    call rshift
+    rrmovq %rsi, %rbx #move the return value back to rbx
+    ret
+    
+shiftresult:
+    irmovq $2, %rax
+    irmovq $23, %r8
+    rrmovq %r10, %rcx #copy the result to rcx to be used as an argument for rshift
+    call rshift
+    rrmovq %rsi, %r10 #move the return value back to r10
+    ret
+
+rshift:
+    #rcx = source binary
+    #rax = read bit mask
+    #r8 = bits to iterate over
+    irmovq $0, %rsi #result
+    irmovq $1, %rdx #write bit mask
+    irmovq $1, %r9 #one value to subtract
+    
+rshiftmain:
+    rrmovq %rcx, %r13 #make a copy of the source cx->13 for comparison
+    andq %rax, %r13 #check if bit pointed by read mask contains 1 or 0
+    jne rshiftone #zf=0 so the bit is one
+    jmp rshiftzero #otherwise zero
+    
+rshiftone:
+    addq %rdx, %rsi #write one to the result
+
+rshiftzero:
+    #shift the masks to left by one
+    addq %rax, %rax
+    addq %rdx, %rdx
+    subq %r9, %r8 #subtract one from the counter
+    jne rshiftmain #back to main loop while the counter != 0
+    ret
+
+.pos 0x700
+array:
